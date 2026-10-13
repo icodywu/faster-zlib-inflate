@@ -32,4 +32,5 @@ for cflags in settings:
         for mode in ("one-call", "16K/64K"):
             a, b = best[(cflags, corpus, level, "stock", mode)], best[(cflags, corpus, level, "patched", mode)]
             cells.append("%.0f -> %.0f (%+.0f%%)" % (a, b, (b / a - 1) * 100) if a and b else "-")
-        print("| %s | %s | %s | %s |" % (corpus, level, cells[0], cells[1]))
+        if cells != ["-", "-"]:
+            print("| %s | %s | %s | %s |" % (corpus, level, cells[0], cells[1]))

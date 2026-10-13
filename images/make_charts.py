@@ -23,7 +23,7 @@ THEMES = {
     "light": dict(bg="#ffffff", ink="#1f2328", muted="#59636e", rule="#d1d9e0", stock="#a3aeb8", new="#0c6f6c"),
     "dark": dict(bg="#0d1117", ink="#e6edf3", muted="#9198a1", rule="#3d444d", stock="#5d6a76", new="#45bdb4"),
 }
-W, PANEL_W, LEFT, MAXV = 880, 400, 150, 800
+W, PANEL_W, LEFT, MAXV = 880, 400, 150, 1000
 BAR, GAP_GROUP = 14, 16
 
 

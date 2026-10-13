@@ -1,37 +1,40 @@
-From ec19b74513da5108566ec2ebb26806d02f521a48 Mon Sep 17 00:00:00 2001
+From 217f080e636d3f80c0c1b944c9373159381efa78 Mon Sep 17 00:00:00 2001
 From: icodywu <125686483+icodywu@users.noreply.github.com>
 Date: Sun, 11 Oct 2026 13:28:03 -0700
-Subject: [PATCH] Speed up inflate_fast() with a 64-bit bit buffer and
- eight-byte copies.
+Subject: [PATCH] Speed up inflate_fast() with a 64-bit bit buffer and wide
+ match copies.
 
 Where a 64-bit type is available (Z_U8), inflate_fast() first runs a loop that
 refills a 64-bit bit buffer eight bytes at a time, once per length/distance
-pair or per up to three literals, and copies matches eight bytes at a time
-(byte by byte for distances 1 to 7). It runs while sixteen bytes of input
-remain and a match plus seven bytes fits in the output; the existing loop
-then continues as before, so the entry conditions of inflate_fast() and
-everything outside inffast.c stay the same, except the root table sizes: 10
-bits for literal/length codes and 8 for distance codes (were 9 and 6), so that
-fewer codes need a second lookup. ENOUGH is from examples/enough.c (1332 and
-400), and the inflate state grows by 1152 bytes.
+pair or per up to three literals. It copies matches sixteen bytes at a time
+for distances of 16 or more and eight at a time for 8 to 15; for distances 1
+to 7 it writes eight bytes per step and advances by the distance. It runs while
+sixteen bytes of input remain and a match plus fifteen bytes fits in the
+output; the existing loop then continues as before, so the entry conditions of
+inflate_fast() and everything outside inffast.c stay the same, except the root
+table sizes: 10 bits for literal/length codes and 8 for distance codes (were 9
+and 6), so that fewer codes need a second lookup. ENOUGH is from
+examples/enough.c (1332 and 400), and the inflate state grows by 1152 bytes.
 
-inflate() is 48% to 62% faster with the whole stream in one call and 43% to
-54% faster with 16K input and 64K output buffers, on Silesia, Canterbury plus
+inflate() is 57% to 74% faster with the whole stream in one call and 47% to
+63% faster with 16K input and 64K output buffers, on Silesia, Canterbury plus
 Calgary, and enwik8 at levels 1, 6 and 9 (AMD EPYC 9334, one core, GCC 14.2
--O2 and -O3; clang and GCC 11 alike). 32-bit x86 is 7% faster in one call.
+-O2 and -O3). On Silesia level 6 in one call, GCC 11 gives +61% and clang 18
++55%. 32-bit x86 is 9% faster in one call and 4% faster in pieces.
 
 test/infcover.c gains cases for the new loop and for second-level codes with
-the larger roots: inffast.c, infback.c and inftrees.c stay at 100% line
+the larger roots: every line of inffast.c runs except the byte-wise load used
+on big-endian machines, and infback.c and inftrees.c stay at 100% line
 coverage.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
  infback.c       |   4 +-
- inffast.c       | 235 ++++++++++++++++++++++++++++++++++++++++++++++++
+ inffast.c       | 245 ++++++++++++++++++++++++++++++++++++++++++++++++
  inflate.c       |   4 +-
  inftrees.h      |  16 ++--
  test/infcover.c |  49 ++++++++++
- 5 files changed, 296 insertions(+), 12 deletions(-)
+ 5 files changed, 306 insertions(+), 12 deletions(-)
 
 diff --git a/infback.c b/infback.c
 index ac96ba1..f80530a 100644
@@ -56,16 +59,16 @@ index ac96ba1..f80530a 100644
                              &(state->next), &(state->distbits), state->work);
              if (ret) {
 diff --git a/inffast.c b/inffast.c
-index d1657f3..0840569 100644
+index d1657f3..4c8d872 100644
 --- a/inffast.c
 +++ b/inffast.c
-@@ -12,6 +12,67 @@
+@@ -12,6 +12,77 @@
  #  pragma message("Assembler code may have bugs -- use at your own risk")
  #else
  
 +#ifdef Z_U8
 +/* Fast loop: with a 64-bit type the bit buffer is refilled eight bytes at a
-+   time, once per code, and matches are copied eight bytes at a time. */
++   time, and matches are copied eight or sixteen bytes at a time. */
 +
 +#define TRACE_LITERAL(here) \
 +    Tracevv((stderr, (here)->val >= 0x20 && (here)->val < 0x7f ? \
@@ -87,13 +90,21 @@ index d1657f3..0840569 100644
 +}
 +
 +/* Copy len >= 1 bytes from dist bytes back in the output to out, and return
-+   out + len. It may write up to seven bytes after out + len, so the caller
++   out + len. It may write up to fifteen bytes after out + len, so the caller
 +   must have that room. */
 +local unsigned char FAR *copy_back(unsigned char FAR *out, unsigned dist,
 +                                   unsigned len) {
 +    unsigned char FAR *from = out - dist;
 +    unsigned char FAR *stop = out + len;
 +
++    if (dist >= 16) {                   /* sixteen at a time, no overlap */
++        do {
++            zmemcpy(out, from, 16);
++            out += 16;
++            from += 16;
++        } while (out < stop);
++        return stop;
++    }
 +    if (dist >= 8) {                    /* eight at a time, no overlap */
 +        do {
 +            zmemcpy(out, from, 8);
@@ -102,24 +113,26 @@ index d1657f3..0840569 100644
 +        } while (out < stop);
 +        return stop;
 +    }
-+    if (dist == 1) {                    /* a run of one byte */
-+        unsigned char c = *from;
++    if (dist == 1) {                    /* a run of one byte, eight at a time */
++        Z_U8 run = *from;
++        run |= run << 8;
++        run |= run << 16;
++        run |= run << 32;
 +        do {
-+            *out++ = c;
-+        } while (--len);
++            zmemcpy(out, &run, 8);
++            out += 8;
++        } while (out < stop);
 +        return stop;
 +    }
-+    while (len > 2) {                   /* after a window copy, len may be 1 */
-+        *out++ = *from++;
-+        *out++ = *from++;
-+        *out++ = *from++;
-+        len -= 3;
-+    }
-+    if (len) {
-+        *out++ = *from++;
-+        if (len > 1)
-+            *out++ = *from++;
-+    }
++    /* dist 2..7: eight bytes per step, of which the first dist are right;
++       the next step rewrites the rest */
++    do {
++        Z_U8 v;
++        zmemcpy(&v, from, 8);
++        zmemcpy(out, &v, 8);
++        out += dist;
++        from += dist;
++    } while (out < stop);
 +    return stop;
 +}
 +#endif
@@ -127,31 +140,31 @@ index d1657f3..0840569 100644
  /*
     Decode literal, length, and distance codes and write out the resulting
     literal and match bytes until either not enough input or output is
-@@ -73,6 +134,11 @@ void ZLIB_INTERNAL inflate_fast(z_streamp strm, unsigned start) {
+@@ -73,6 +144,11 @@ void ZLIB_INTERNAL inflate_fast(z_streamp strm, unsigned start) {
      unsigned len;               /* match length, unused bytes */
      unsigned dist;              /* match distance */
      unsigned char FAR *from;    /* where to copy match from */
 +#ifdef Z_U8
 +    Z_U8 hold8;                 /* 64-bit bit buffer of the fast loop */
 +    z_const unsigned char FAR *last8;   /* two refills fit after in */
-+    unsigned char FAR *end8;    /* room for a match and seven more bytes */
++    unsigned char FAR *end8;    /* room for a match and fifteen more */
 +#endif
  
      /* copy state to local variables */
      state = (struct inflate_state FAR *)strm->state;
-@@ -95,6 +161,172 @@ void ZLIB_INTERNAL inflate_fast(z_streamp strm, unsigned start) {
+@@ -95,6 +171,172 @@ void ZLIB_INTERNAL inflate_fast(z_streamp strm, unsigned start) {
      lmask = (1U << state->lenbits) - 1;
      dmask = (1U << state->distbits) - 1;
  
 +#ifdef Z_U8
 +    /* Fast loop, while sixteen bytes can be read at in (two refills of
 +       eight bytes, the first advancing in by up to seven) and a match plus
-+       seven bytes fits in the output. Each length/literal code starts with
++       fifteen bytes fits in the output. Each length/literal code starts with
 +       at least 56 bits in hold8, enough for a length/distance pair (at most
 +       48 bits). */
-+    if (strm->avail_in >= 16 && strm->avail_out >= 258 + 7) {
++    if (strm->avail_in >= 16 && strm->avail_out >= 258 + 15) {
 +        last8 = in + (strm->avail_in - 16);
-+        end8 = out + (strm->avail_out - (258 + 7));
++        end8 = out + (strm->avail_out - (258 + 15));
 +        hold8 = hold;
 +        do {
 +            hold8 |= load64(in) << bits;
@@ -312,7 +325,7 @@ index d1657f3..0840569 100644
      /* decode literals and length/distances until end-of-block or not enough
         input data or output space */
      do {
-@@ -287,6 +519,9 @@ void ZLIB_INTERNAL inflate_fast(z_streamp strm, unsigned start) {
+@@ -287,6 +529,9 @@ void ZLIB_INTERNAL inflate_fast(z_streamp strm, unsigned start) {
          }
      } while (in < last && out < end);
  
