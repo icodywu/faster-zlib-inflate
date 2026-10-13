@@ -8,7 +8,12 @@
 #include <time.h>
 #include "zlib.h"
 
+#ifdef _WIN32
+#include <windows.h>
+static double now(void) { LARGE_INTEGER f, t; QueryPerformanceFrequency(&f); QueryPerformanceCounter(&t); return (double)t.QuadPart / (double)f.QuadPart; }
+#else
 static double now(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec + t.tv_nsec * 1e-9; }
+#endif
 
 static unsigned char* load(const char* name, size_t* n)
 {

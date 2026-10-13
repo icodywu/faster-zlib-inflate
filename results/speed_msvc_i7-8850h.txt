@@ -1,0 +1,40 @@
+# inflate() throughput, MB/s, measured as in speed_epyc9334.txt (bench/zbench.c), on Windows 11: Intel Core
+# i7-8850H laptop (6 cores, 2.6 GHz base, turbo on), on AC power, Best performance mode; Microsoft C/C++ 19.44
+# (Visual Studio 2022) cl /O2, x64. The benchmark ran pinned to one logical CPU at high priority. stock = zlib
+# develop 767c4c9; patched = the same plus patch/0001-*.patch. Level 6 only; three rounds, interleaved.
+round=1 level=6 corpus=silesia build=stock cflags=msvc-O2 mode=one-call MB/s=319.1
+round=1 level=6 corpus=silesia build=stock cflags=msvc-O2 mode=16K/64K MB/s=292.1
+round=1 level=6 corpus=silesia build=patched cflags=msvc-O2 mode=one-call MB/s=490.1
+round=1 level=6 corpus=silesia build=patched cflags=msvc-O2 mode=16K/64K MB/s=430.3
+round=1 level=6 corpus=canterbury+calgary build=stock cflags=msvc-O2 mode=one-call MB/s=329.9
+round=1 level=6 corpus=canterbury+calgary build=stock cflags=msvc-O2 mode=16K/64K MB/s=307.9
+round=1 level=6 corpus=canterbury+calgary build=patched cflags=msvc-O2 mode=one-call MB/s=531.3
+round=1 level=6 corpus=canterbury+calgary build=patched cflags=msvc-O2 mode=16K/64K MB/s=449.0
+round=1 level=6 corpus=enwik8 build=stock cflags=msvc-O2 mode=one-call MB/s=258.7
+round=1 level=6 corpus=enwik8 build=stock cflags=msvc-O2 mode=16K/64K MB/s=235.8
+round=1 level=6 corpus=enwik8 build=patched cflags=msvc-O2 mode=one-call MB/s=424.7
+round=1 level=6 corpus=enwik8 build=patched cflags=msvc-O2 mode=16K/64K MB/s=348.9
+round=2 level=6 corpus=silesia build=stock cflags=msvc-O2 mode=one-call MB/s=326.3
+round=2 level=6 corpus=silesia build=stock cflags=msvc-O2 mode=16K/64K MB/s=294.7
+round=2 level=6 corpus=silesia build=patched cflags=msvc-O2 mode=one-call MB/s=506.6
+round=2 level=6 corpus=silesia build=patched cflags=msvc-O2 mode=16K/64K MB/s=434.5
+round=2 level=6 corpus=canterbury+calgary build=stock cflags=msvc-O2 mode=one-call MB/s=330.6
+round=2 level=6 corpus=canterbury+calgary build=stock cflags=msvc-O2 mode=16K/64K MB/s=304.6
+round=2 level=6 corpus=canterbury+calgary build=patched cflags=msvc-O2 mode=one-call MB/s=529.8
+round=2 level=6 corpus=canterbury+calgary build=patched cflags=msvc-O2 mode=16K/64K MB/s=449.5
+round=2 level=6 corpus=enwik8 build=stock cflags=msvc-O2 mode=one-call MB/s=257.9
+round=2 level=6 corpus=enwik8 build=stock cflags=msvc-O2 mode=16K/64K MB/s=233.5
+round=2 level=6 corpus=enwik8 build=patched cflags=msvc-O2 mode=one-call MB/s=420.0
+round=2 level=6 corpus=enwik8 build=patched cflags=msvc-O2 mode=16K/64K MB/s=348.0
+round=3 level=6 corpus=silesia build=stock cflags=msvc-O2 mode=one-call MB/s=321.2
+round=3 level=6 corpus=silesia build=stock cflags=msvc-O2 mode=16K/64K MB/s=294.6
+round=3 level=6 corpus=silesia build=patched cflags=msvc-O2 mode=one-call MB/s=504.5
+round=3 level=6 corpus=silesia build=patched cflags=msvc-O2 mode=16K/64K MB/s=431.2
+round=3 level=6 corpus=canterbury+calgary build=stock cflags=msvc-O2 mode=one-call MB/s=327.5
+round=3 level=6 corpus=canterbury+calgary build=stock cflags=msvc-O2 mode=16K/64K MB/s=300.9
+round=3 level=6 corpus=canterbury+calgary build=patched cflags=msvc-O2 mode=one-call MB/s=526.9
+round=3 level=6 corpus=canterbury+calgary build=patched cflags=msvc-O2 mode=16K/64K MB/s=447.9
+round=3 level=6 corpus=enwik8 build=stock cflags=msvc-O2 mode=one-call MB/s=257.3
+round=3 level=6 corpus=enwik8 build=stock cflags=msvc-O2 mode=16K/64K MB/s=234.1
+round=3 level=6 corpus=enwik8 build=patched cflags=msvc-O2 mode=one-call MB/s=422.5
+round=3 level=6 corpus=enwik8 build=patched cflags=msvc-O2 mode=16K/64K MB/s=348.1

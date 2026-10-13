@@ -29,10 +29,12 @@ Throughput of `inflate()`, stock zlib against the patched one, on zlib's own str
 | enwik8 | 6 | 349 → 591 (+69%) | 325 → 507 (+56%) |
 | enwik8 | 9 | 350 → 592 (+69%) | 325 → 506 (+56%) |
 
-`-O3` gives the same gains (+58% to +76% in one call). GCC 11 gives +61% / +54% and clang 18 +55% / +47% on
-Silesia level 6. On 32-bit x86, where the 64-bit buffer is emulated, the gain is +9% in one call and +4% in
-pieces. For context, [zlib-ng](https://github.com/zlib-ng/zlib-ng), a performance-focused fork, still decodes about
-twice as fast as stock zlib; this patch is for the many programs that use zlib itself. All runs:
+`-O3` gives the same gains (+58% to +76% in one call). GCC 11 gives +61% / +54% and clang 18 +55% / +47% on Silesia
+level 6. On 32-bit x86, where the 64-bit buffer is emulated, the gain is +9% in one call and +4% in pieces. On
+Windows, with Visual Studio 2022 (`cl /O2`) on an Intel Core i7-8850H laptop, level 6 gains +55% to +64% in one call
+and +46% to +48% in pieces ([`results/speed_msvc_i7-8850h.txt`](results/speed_msvc_i7-8850h.txt)). For context,
+[zlib-ng](https://github.com/zlib-ng/zlib-ng), a performance-focused fork, still decodes about twice as fast as
+stock zlib; this patch is for the many programs that use zlib itself. All runs:
 [`results/speed_epyc9334.txt`](results/speed_epyc9334.txt).
 
 ## What changed
@@ -101,6 +103,9 @@ Canterbury + Calgary, and enwik8, the first 10^8 bytes of [enwik9](https://mattm
 sh bench/run_speed.sh zlib-stock zlib-patched silesia/ canterbury+calgary/ enwik8/ > speed.txt
 python3 bench/summarize.py speed.txt
 ```
+
+`bench/zbench.c` and `bench/zmake.c` also build with MSVC (`cl /O2 /I. <the zlib .c files> zbench.c`), which is
+how the Windows numbers were taken.
 
 Correctness under the sanitizers, on synthetic inputs plus any corpus:
 
