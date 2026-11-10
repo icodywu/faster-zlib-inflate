@@ -3,9 +3,15 @@
 A new fast loop in zlib's `inflate_fast()` and slightly larger decoding tables make `inflate()` 47–74% faster on
 standard test corpora, while giving the same output and the same errors as zlib on every input I could produce.
 
-**5 files, +306 / −12 lines, no API change, C89**, on zlib's `develop` branch (1.3.2.1). The patch is
+**5 files, +308 / −12 lines, no API change, C89**, on zlib's `develop` branch (1.3.2.1). The patch is
 [`patch/0001-Speed-up-inflate_fast-with-a-64-bit-bit-buffer-and-w.patch`](patch/0001-Speed-up-inflate_fast-with-a-64-bit-bit-buffer-and-w.patch)
 and is submitted to zlib as [pull request #793](https://github.com/madler/zlib/pull/793).
+
+**Fix, 9 November 2026:** the earlier version of the patch could make `inflate()` write up to two bytes past the
+output space it was given: one step of the new loop can write two literals and then a match, and the loop
+required room only for the match and the 15 bytes a match copy may overrun. The patch here now requires room for
+the two literals too (275 bytes instead of 273). If you applied the earlier patch, apply this one
+instead.
 
 ## Speed
 
@@ -41,11 +47,11 @@ stock zlib; this patch is for the many programs that use zlib itself. All runs:
 
 ```
  infback.c       |   4 +-
- inffast.c       | 245 ++++++++++++++++++++++++++++++
+ inffast.c       | 247 ++++++++++++++++++++++++++++++
  inflate.c       |   4 +-
  inftrees.h      |  16 ++--
  test/infcover.c |  49 ++++++
- 5 files changed, 306 insertions(+), 12 deletions(-)
+ 5 files changed, 308 insertions(+), 12 deletions(-)
 ```
 
 - **A 64-bit bit buffer, refilled eight bytes at a time.** One load covers a whole length/distance pair (at most
@@ -57,7 +63,8 @@ stock zlib; this patch is for the many programs that use zlib itself. All runs:
 - **Larger root tables.** Literal/length codes are looked up with 10 bits instead of 9 and distances with 8 instead
   of 6, so fewer codes need a second lookup. The table sizes come from zlib's own `examples/enough.c`; each stream's
   state grows by 1,152 bytes.
-- **Nothing else moves.** The new loop runs while 16 bytes of input and room for a match plus 15 bytes remain;
+- **Nothing else moves.** The new loop runs while 16 bytes of input and room for two literals and a match plus 15
+  bytes remain;
   zlib's existing loop finishes near the buffer ends exactly as before. Without a 64-bit type (`Z_U8`) the code is
   unchanged.
 
